@@ -4,7 +4,7 @@ import { getTimeContext } from '../utils/timeUtils.js';
 import { recalculateCell } from './heatmapService.js';
 
 export async function submitRating(data) {
-  const { deviceUuid, lat, lng, rating, tags } = data;
+  const { deviceUuid, lat, lng, rating, tags, localHour } = data;
   const cellId = encodeHash(lat, lng, 7);
 
   // 1. Silent discard check: 6-day check
@@ -14,7 +14,7 @@ export async function submitRating(data) {
     .first();
 
   if (recent) {
-    // Silent success - do not write to db, just return cellId
+    console.log(`[Rate Limit] Silent discard: duplicate rating for device ${deviceUuid} in cell ${cellId}`);
     return { success: true, cellId, discarded: true };
   }
 
@@ -27,7 +27,7 @@ export async function submitRating(data) {
       hasPostgis = true;
     } catch (_) {}
 
-    const timeCtx = getTimeContext();
+    const timeCtx = localHour !== undefined ? String(localHour) : getTimeContext();
 
     const insertData = {
       device_uuid: deviceUuid,

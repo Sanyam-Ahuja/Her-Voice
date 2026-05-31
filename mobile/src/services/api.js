@@ -19,9 +19,9 @@ api.interceptors.request.use(async (config) => {
   return config;
 });
 
-export async function fetchHeatmap(bounds = null, timeFilter = 'all') {
+export async function fetchHeatmap(bounds = null, hour = 'live') {
   try {
-    let url = `/heatmap?timeFilter=${timeFilter}`;
+    let url = `/heatmap?hour=${hour}`;
     if (bounds) {
       const { sw, ne } = bounds;
       url += `&swLat=${sw.latitude}&swLng=${sw.longitude}&neLat=${ne.latitude}&neLng=${ne.longitude}`;
@@ -51,7 +51,8 @@ export async function submitRatingToServer(lat, lng, rating, tags) {
       latitude: lat,
       longitude: lng,
       safety_rating: rating,
-      tags
+      tags,
+      local_hour: new Date().getHours()
     });
 
     // Save submission locally to lock it for 6 days

@@ -27,3 +27,27 @@ export async function getCurrentLocation() {
     return null;
   }
 }
+
+export async function watchLocation(onLocationUpdate) {
+  try {
+    const isGranted = await requestLocationPermission();
+    if (!isGranted) return null;
+
+    return await Location.watchPositionAsync(
+      {
+        accuracy: Location.Accuracy.High,
+        timeInterval: 3000, // Update every 3 seconds
+        distanceInterval: 2 // Update if user moves 2 meters
+      },
+      (loc) => {
+        onLocationUpdate({
+          latitude: loc.coords.latitude,
+          longitude: loc.coords.longitude
+        });
+      }
+    );
+  } catch (err) {
+    console.error('Error watching live location', err);
+    return null;
+  }
+}

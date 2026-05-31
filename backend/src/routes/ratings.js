@@ -5,7 +5,7 @@ import db from '../config/database.js';
 const router = express.Router();
 
 router.post('/ratings', async (req, res) => {
-  const { device_uuid, latitude, longitude, safety_rating, tags } = req.body;
+  const { device_uuid, latitude, longitude, safety_rating, tags, local_hour } = req.body;
 
   if (!device_uuid || latitude === undefined || longitude === undefined || !safety_rating) {
     return res.status(400).json({ error: 'Missing required parameters' });
@@ -22,7 +22,8 @@ router.post('/ratings', async (req, res) => {
       lat: parseFloat(latitude),
       lng: parseFloat(longitude),
       rating: rat,
-      tags: Array.isArray(tags) ? tags : []
+      tags: Array.isArray(tags) ? tags : [],
+      localHour: local_hour !== undefined ? parseInt(local_hour, 10) : undefined
     });
 
     res.status(201).json(output);

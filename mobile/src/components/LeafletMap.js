@@ -1,4 +1,4 @@
-import React, { useRef, useEffect, useCallback } from 'react';
+import React, { useRef, useEffect, useCallback, useMemo } from 'react';
 import { StyleSheet, View } from 'react-native';
 import { WebView } from 'react-native-webview';
 
@@ -14,13 +14,19 @@ function buildMapHtml(initLat, initLng) {
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; }
-    html, body, #map { width: 100%; height: 100%; background: #0d0d1a; }
-    .leaflet-tile-pane { filter: brightness(0.7) saturate(0.6); }
+    html, body, #map { width: 100%; height: 100%; background: #18182c; }
+    /* Lighter dark mode tiles (using CartoDB Dark Matter with increased brightness filter) */
+    .leaflet-tile-pane { filter: brightness(1.05) saturate(0.85); }
     .leaflet-control-attribution { display: none; }
     .leaflet-control-zoom a {
-      background: #1a1a2e !important;
+      background: #1e1e38 !important;
       color: #f8f8ff !important;
-      border-color: #334 !important;
+      border-color: #3f3f5c !important;
+    }
+    /* Blur overlay for organic heatmap splurges */
+    .heat-splurge {
+      filter: blur(22px);
+      pointer-events: none;
     }
   </style>
 </head>
@@ -39,6 +45,8 @@ function buildMapHtml(initLat, initLng) {
 
     var heatCircles = [];
     var userMarker = null;
+    var userPulseRing = null;
+    var hasCenteredOnUser = false;
 
     // Called from React Native to update heatmap cells
     function updateHeatmap(cells) {
@@ -47,17 +55,17 @@ function buildMapHtml(initLat, initLng) {
 
       cells.forEach(function(cell) {
         var score = cell.score;
-        var color = '#F59E0B'; // moderate
-        if (score >= 4.0) color = '#10B981';
-        else if (score < 2.5) color = '#EF4444';
+        var color = '#F59E0B'; // moderate (amber)
+        if (score >= 4.0) color = '#10B981'; // safe (emerald green)
+        else if (score < 2.5) color = '#EF4444'; // danger (crimson)
 
+        // Draw borderless circles with blur filter for organic heatmap splurges
         var circle = L.circle([cell.center.lat, cell.center.lng], {
-          radius: 100,
+          radius: 140,
           fillColor: color,
-          fillOpacity: 0.35,
-          color: color,
-          opacity: 0.7,
-          weight: 1.5
+          fillOpacity: 0.5,
+          stroke: false,
+          className: 'heat-splurge'
         }).addTo(map);
 
         heatCircles.push(circle);
@@ -66,18 +74,48 @@ function buildMapHtml(initLat, initLng) {
 
     // Called from React Native to move to user location
     function setUserLocation(lat, lng) {
+      var latLng = [lat, lng];
+      window.currentUserLatLng = latLng;
+
       if (userMarker) {
-        map.removeLayer(userMarker);
+        userMarker.setLatLng(latLng);
+      } else {
+        // White-bordered blue dot location marker
+        userMarker = L.circleMarker(latLng, {
+          radius: 7,
+          fillColor: '#1A73E8',
+          fillOpacity: 1,
+          color: '#FFFFFF',
+          weight: 2.5
+        }).addTo(map);
       }
-      userMarker = L.circleMarker([lat, lng], {
-        radius: 9,
-        fillColor: '#6C3FC5',
-        fillOpacity: 1,
-        color: '#A78BFA',
-        weight: 3
-      }).addTo(map);
-      map.setView([lat, lng], 15, { animate: true });
+
+      if (userPulseRing) {
+        userPulseRing.setLatLng(latLng);
+      } else {
+        // Add a Google Maps-style soft blue pulsing circle aura
+        userPulseRing = L.circle(latLng, {
+          radius: 40,
+          fillColor: '#1A73E8',
+          fillOpacity: 0.15,
+          color: 'transparent',
+          weight: 0
+        }).addTo(map);
+      }
+
+      // Only center map on user on first initial coordinate loading
+      if (!hasCenteredOnUser) {
+        map.setView(latLng, 15);
+        hasCenteredOnUser = true;
+      }
     }
+
+    // Post drag state starting back to React Native
+    map.on('movestart', function() {
+      window.ReactNativeWebView.postMessage(JSON.stringify({
+        type: 'mapDragStart'
+      }));
+    });
 
     // Post map center back to React Native when user moves map
     map.on('moveend', function() {
@@ -101,8 +139,8 @@ function buildMapHtml(initLat, initLng) {
         var msg = JSON.parse(raw);
         if (msg.type === 'updateHeatmap') updateHeatmap(msg.cells);
         if (msg.type === 'setUserLocation') setUserLocation(msg.lat, msg.lng);
-        if (msg.type === 'recenter' && userMarker) {
-          map.setView(userMarker.getLatLng(), 15, { animate: true });
+        if (msg.type === 'recenter' && window.currentUserLatLng) {
+          map.setView(window.currentUserLatLng, 15, { animate: true });
         }
       } catch(e) {}
     }
@@ -112,8 +150,11 @@ function buildMapHtml(initLat, initLng) {
   `;
 }
 
-export default function LeafletMap({ userLocation, heatmapCells, onRegionChange }) {
+export default function LeafletMap({ userLocation, heatmapCells, onRegionChange, onMapDragStart }) {
   const webRef = useRef(null);
+
+  // Memoize the map HTML to prevent WebView reloads when coordinates update
+  const mapHtml = useMemo(() => buildMapHtml(28.6139, 77.2090), []);
 
   // Send a message to the WebView
   const postMsg = useCallback((obj) => {
@@ -126,7 +167,7 @@ export default function LeafletMap({ userLocation, heatmapCells, onRegionChange 
     postMsg({ type: 'updateHeatmap', cells: heatmapCells });
   }, [heatmapCells, postMsg]);
 
-  // When user location arrives, center and show marker
+  // When user location arrives, update marker position
   useEffect(() => {
     if (userLocation) {
       postMsg({
@@ -140,9 +181,6 @@ export default function LeafletMap({ userLocation, heatmapCells, onRegionChange 
   // Expose recenter function via ref externally (called from MapScreen)
   LeafletMap.recenter = () => postMsg({ type: 'recenter' });
 
-  const defaultLat = userLocation ? userLocation.latitude : 28.6139;
-  const defaultLng = userLocation ? userLocation.longitude : 77.2090;
-
   const handleMessage = useCallback((event) => {
     try {
       const msg = JSON.parse(event.nativeEvent.data);
@@ -153,9 +191,11 @@ export default function LeafletMap({ userLocation, heatmapCells, onRegionChange 
           sw: msg.sw,
           ne: msg.ne
         });
+      } else if (msg.type === 'mapDragStart' && onMapDragStart) {
+        onMapDragStart();
       }
     } catch (_) {}
-  }, [onRegionChange]);
+  }, [onRegionChange, onMapDragStart]);
 
   return (
     <View style={styles.container}>
@@ -163,7 +203,7 @@ export default function LeafletMap({ userLocation, heatmapCells, onRegionChange 
         ref={webRef}
         style={styles.webview}
         originWhitelist={['*']}
-        source={{ html: buildMapHtml(defaultLat, defaultLng) }}
+        source={{ html: mapHtml }}
         onMessage={handleMessage}
         javaScriptEnabled={true}
         domStorageEnabled={true}
@@ -182,6 +222,6 @@ const styles = StyleSheet.create({
   },
   webview: {
     flex: 1,
-    backgroundColor: '#0d0d1a',
+    backgroundColor: '#18182c',
   }
 });

@@ -1,22 +1,50 @@
-import React, { useState, useCallback } from 'react';
-import { View, StyleSheet, TouchableOpacity, Text, ActivityIndicator } from 'react-native';
+import React, { useEffect, useState, useCallback } from 'react';
+import { View, StyleSheet, TouchableOpacity, Text, ActivityIndicator, Alert } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAppStore } from '../store/useAppStore';
 import { colors } from '../utils/colors';
 import LeafletMap from '../components/LeafletMap';
 import TimeFilterBar from '../components/TimeFilterBar';
 import SOSButton from '../components/SOSButton';
+import { watchLocation } from '../services/locationService';
+
+// Custom vector-styled recenter crosshair icon
+function RecenterIcon() {
+  return (
+    <View style={styles.crosshairContainer}>
+      <View style={styles.crosshairCircle} />
+      <View style={styles.crosshairDot} />
+      <View style={[styles.crosshairTick, { top: 2, width: 2, height: 4 }]} />
+      <View style={[styles.crosshairTick, { bottom: 2, width: 2, height: 4 }]} />
+      <View style={[styles.crosshairTick, { left: 2, width: 4, height: 2 }]} />
+      <View style={[styles.crosshairTick, { right: 2, width: 4, height: 2 }]} />
+    </View>
+  );
+}
 
 export default function MapScreen({ onOpenRating }) {
   const insets = useSafeAreaInsets();
-  const { userLocation, heatmapCells, fetchHeatmapData, isLoading } = useAppStore();
+  const { userLocation, setUserLocation, heatmapCells, fetchHeatmapData, isLoading } = useAppStore();
 
-  // Track the current map center so we know where to submit a rating
-  const [mapCenter, setMapCenter] = useState(null);
+  // Watch user location live as they move (like Google Maps)
+  useEffect(() => {
+    let sub = null;
+    async function startTracking() {
+      sub = await watchLocation((coords) => {
+        setUserLocation(coords);
+      });
+    }
+    startTracking();
 
+    return () => {
+      if (sub && typeof sub.remove === 'function') {
+        sub.remove();
+      }
+    };
+  }, [setUserLocation]);
+
+  // Heatmap boundaries update when map is scrolled/panned
   const handleRegionChange = useCallback((region) => {
-    setMapCenter({ latitude: region.latitude, longitude: region.longitude });
-
     const bounds = {
       sw: { latitude: region.sw.lat, longitude: region.sw.lng },
       ne: { latitude: region.ne.lat, longitude: region.ne.lng }
@@ -25,15 +53,19 @@ export default function MapScreen({ onOpenRating }) {
   }, [fetchHeatmapData]);
 
   const handleRatePress = () => {
-    // Prefer map center (where user is looking) over GPS location
-    const coords = mapCenter || userLocation;
-    if (coords) {
-      onOpenRating(coords);
+    // Force ratings to use actual live GPS location rather than manual picking
+    if (userLocation) {
+      onOpenRating(userLocation);
+    } else {
+      Alert.alert(
+        'Location Unavailable',
+        'Could not determine your current coordinates. Please check your GPS and permissions.',
+        [{ text: 'OK' }]
+      );
     }
   };
 
   const handleRecenter = () => {
-    // Tell the WebView map to animate back to the user marker
     LeafletMap.recenter();
   };
 
@@ -62,7 +94,7 @@ export default function MapScreen({ onOpenRating }) {
         onPress={handleRecenter}
         activeOpacity={0.8}
       >
-        <Text style={styles.recenterIcon}>📍</Text>
+        <RecenterIcon />
       </TouchableOpacity>
 
       {/* Bottom bar: SOS + Rate button */}
@@ -73,7 +105,7 @@ export default function MapScreen({ onOpenRating }) {
           onPress={handleRatePress}
           activeOpacity={0.8}
         >
-          <Text style={styles.rateBtnText}>Rate This Area ★</Text>
+          <Text style={styles.rateBtnText}>Rate Current Area</Text>
         </TouchableOpacity>
       </View>
     </View>
@@ -99,6 +131,7 @@ const styles = StyleSheet.create({
     padding: 6,
     marginTop: 8,
   },
+  // Recenter button
   recenterBtn: {
     position: 'absolute',
     right: 16,
@@ -113,9 +146,34 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.3,
     shadowRadius: 4,
+    borderWidth: 1,
+    borderColor: '#2e2e46',
   },
-  recenterIcon: {
-    fontSize: 20,
+  // Recenter Crosshair styles
+  crosshairContainer: {
+    width: 24,
+    height: 24,
+    justifyContent: 'center',
+    alignItems: 'center',
+    position: 'relative',
+  },
+  crosshairCircle: {
+    width: 16,
+    height: 16,
+    borderRadius: 8,
+    borderWidth: 1.5,
+    borderColor: colors.text,
+  },
+  crosshairDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: colors.accent,
+    position: 'absolute',
+  },
+  crosshairTick: {
+    position: 'absolute',
+    backgroundColor: colors.text,
   },
   bottomBar: {
     position: 'absolute',

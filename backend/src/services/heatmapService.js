@@ -11,17 +11,7 @@ export async function recalculateCell(cellId) {
         SUM(safety_rating * EXP(-${LAMBDA} * (EXTRACT(EPOCH FROM (NOW() - created_at)) / 86400.0))) /
         NULLIF(SUM(EXP(-${LAMBDA} * (EXTRACT(EPOCH FROM (NOW() - created_at)) / 86400.0))), 0),
         0
-      ) as weighted_score,
-      COALESCE(
-        SUM(CASE WHEN time_context = 'day' THEN safety_rating * EXP(-${LAMBDA} * (EXTRACT(EPOCH FROM (NOW() - created_at)) / 86400.0)) ELSE 0 END) /
-        NULLIF(SUM(CASE WHEN time_context = 'day' THEN EXP(-${LAMBDA} * (EXTRACT(EPOCH FROM (NOW() - created_at)) / 86400.0)) ELSE 0 END), 0),
-        0
-      ) as day_score,
-      COALESCE(
-        SUM(CASE WHEN time_context = 'night' THEN safety_rating * EXP(-${LAMBDA} * (EXTRACT(EPOCH FROM (NOW() - created_at)) / 86400.0)) ELSE 0 END) /
-        NULLIF(SUM(CASE WHEN time_context = 'night' THEN EXP(-${LAMBDA} * (EXTRACT(EPOCH FROM (NOW() - created_at)) / 86400.0)) ELSE 0 END), 0),
-        0
-      ) as night_score
+      ) as weighted_score
     FROM ratings
     WHERE grid_cell_id = ?
   `;
@@ -40,8 +30,8 @@ export async function recalculateCell(cellId) {
   const payload = {
     weighted_score: parseFloat(stats.weighted_score) || 0,
     total_ratings: total,
-    day_score: parseFloat(stats.day_score) || 0,
-    night_score: parseFloat(stats.night_score) || 0,
+    day_score: 0,
+    night_score: 0,
     last_updated: db.fn.now()
   };
 
