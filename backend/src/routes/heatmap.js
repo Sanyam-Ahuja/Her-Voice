@@ -80,7 +80,8 @@ router.get('/heatmap', async (req, res) => {
             lng: parseFloat(c.center_lng)
           },
           score: parseFloat(score.toFixed(2)),
-          total_ratings: parseInt(c.total_ratings, 10)
+          total_ratings: parseInt(c.total_ratings, 10),
+          weight: parseFloat(totalWeight.toFixed(3))
         };
       })
       .filter(Boolean);

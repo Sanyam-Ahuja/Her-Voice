@@ -59,11 +59,14 @@ function buildMapHtml(initLat, initLng) {
         if (score >= 4.0) color = '#10B981'; // safe (emerald green)
         else if (score < 2.5) color = '#EF4444'; // danger (crimson)
 
+        // Scale opacity based on relevance weight (minimum 0.15, maximum 0.60)
+        var opacity = Math.min(0.15 + ((cell.weight || 1.0) * 0.18), 0.60);
+
         // Draw borderless circles with blur filter for organic heatmap splurges
         var circle = L.circle([cell.center.lat, cell.center.lng], {
           radius: 140,
           fillColor: color,
-          fillOpacity: 0.5,
+          fillOpacity: opacity,
           stroke: false,
           className: 'heat-splurge'
         }).addTo(map);
