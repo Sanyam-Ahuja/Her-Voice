@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import { fetchHeatmap, fetchTags } from '../services/api';
+import { fetchHeatmap/*, fetchTags*/ } from '../services/api';
 
 export const useAppStore = create((set, get) => ({
   userLocation: null,
@@ -7,7 +7,7 @@ export const useAppStore = create((set, get) => ({
   selectedHour: 'live', // 'live' or integer (0-23)
   isLoading: false,
   isRatingActive: false,
-  tags: { predefined: [], popular_custom: [] },
+  // tags: { predefined: [], popular_custom: [] },
   lastBounds: null,
 
   setUserLocation: (loc) => set({ userLocation: loc }),
@@ -31,10 +31,10 @@ export const useAppStore = create((set, get) => ({
     } finally {
       set({ isLoading: false });
     }
-  },
-
-  loadTags: async () => {
-    const list = await fetchTags();
-    set({ tags: list });
   }
+
+  // loadTags: async () => {
+  //   const list = await fetchTags();
+  //   set({ tags: list });
+  // }
 }));

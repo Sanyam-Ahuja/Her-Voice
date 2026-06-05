@@ -136,23 +136,23 @@ async def create_rating(payload: RatingCreate, db: AsyncSession = Depends(get_db
 
     return {"success": True, "cellId": cell_id, "discarded": False}
 
-@router.get("/tags")
-async def get_tags(db: AsyncSession = Depends(get_db)):
-    predefined_res = await db.execute(text("SELECT id, name FROM tags WHERE is_predefined = TRUE"))
-    predefined = [{"id": r[0], "name": r[1]} for r in predefined_res.fetchall()]
-
-    custom_res = await db.execute(text("""
-        SELECT id, name, usage_count FROM tags 
-        WHERE is_predefined = FALSE 
-        ORDER BY usage_count DESC 
-        LIMIT 10
-    """))
-    custom = [{"id": r[0], "name": r[1], "usage_count": r[2]} for r in custom_res.fetchall()]
-
-    return {
-        "predefined": predefined,
-        "popular_custom": custom
-    }
+# @router.get("/tags")
+# async def get_tags(db: AsyncSession = Depends(get_db)):
+#     predefined_res = await db.execute(text("SELECT id, name FROM tags WHERE is_predefined = TRUE"))
+#     predefined = [{"id": r[0], "name": r[1]} for r in predefined_res.fetchall()]
+# 
+#     custom_res = await db.execute(text("""
+#         SELECT id, name, usage_count FROM tags 
+#         WHERE is_predefined = FALSE 
+#         ORDER BY usage_count DESC 
+#         LIMIT 10
+#     """))
+#     custom = [{"id": r[0], "name": r[1], "usage_count": r[2]} for r in custom_res.fetchall()]
+# 
+#     return {
+#         "predefined": predefined,
+#         "popular_custom": custom
+#     }
 
 @router.get("/heatmap")
 async def get_heatmap(

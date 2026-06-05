@@ -65,12 +65,12 @@ export async function submitRatingToServer(lat, lng, rating, tags) {
   }
 }
 
-export async function fetchTags() {
-  try {
-    const res = await api.get('/tags');
-    return res.data;
-  } catch (err) {
-    console.error('Error fetching tags list', err);
-    return { predefined: [], popular_custom: [] };
-  }
-}
+// export async function fetchTags() {
+//   try {
+//     const res = await api.get('/tags');
+//     return res.data;
+//   } catch (err) {
+//     console.error('Error fetching tags list', err);
+//     return { predefined: [], popular_custom: [] };
+//   }
+// }
