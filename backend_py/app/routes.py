@@ -20,6 +20,53 @@ class RatingCreate(BaseModel):
     tags: List[str] = []
     local_hour: Optional[int] = Field(None, ge=0, le=23)
 
+async def recalculate_cell(cell_id: str, db: AsyncSession):
+    """Recalculate cache stats for a specific cell_id"""
+    sql = """
+        SELECT 
+            COUNT(*) as total,
+            COALESCE(
+                SUM(safety_rating * EXP(-0.00770163533 * (EXTRACT(EPOCH FROM (NOW() - created_at)) / 86400.0))) /
+                NULLIF(SUM(EXP(-0.00770163533 * (EXTRACT(EPOCH FROM (NOW() - created_at)) / 86400.0))), 0),
+                0
+            ) as weighted_score
+        FROM ratings
+        WHERE grid_cell_id = :cell_id
+    """
+    res = await db.execute(text(sql), {"cell_id": cell_id})
+    row = res.fetchone()
+    
+    if not row or row[0] == 0:
+        await db.execute(text("DELETE FROM grid_cells WHERE cell_id = :cell_id"), {"cell_id": cell_id})
+        return
+
+    total = row[0]
+    weighted_score = float(row[1]) if row[1] is not None else 0.0
+    coords = decode_hash(cell_id)
+
+    # Check if grid cell cache exists
+    res_exists = await db.execute(text("SELECT 1 FROM grid_cells WHERE cell_id = :cell_id"), {"cell_id": cell_id})
+    exists = res_exists.fetchone()
+
+    if exists:
+        update_sql = """
+            UPDATE grid_cells 
+            SET weighted_score = :score, total_ratings = :total, last_updated = NOW()
+            WHERE cell_id = :cell_id
+        """
+        await db.execute(text(update_sql), {"score": weighted_score, "total": total, "cell_id": cell_id})
+    else:
+        insert_sql = """
+            INSERT INTO grid_cells (cell_id, center_lat, center_lng, weighted_score, total_ratings, last_updated)
+            VALUES (:cell_id, :lat, :lng, :score, :total, NOW())
+        """
+        await db.execute(text(insert_sql), {
+            "cell_id": cell_id,
+            "lat": coords["lat"],
+            "lng": coords["lng"],
+            "score": weighted_score,
+            "total": total
+        })
 
 @router.post("/ratings", status_code=201)
 async def create_rating(payload: RatingCreate, db: AsyncSession = Depends(get_db)):
@@ -106,3 +153,88 @@ async def get_tags(db: AsyncSession = Depends(get_db)):
         "predefined": predefined,
         "popular_custom": custom
     }
+
+@router.get("/heatmap")
+async def get_heatmap(
+    swLat: Optional[float] = Query(None),
+    swLng: Optional[float] = Query(None),
+    neLat: Optional[float] = Query(None),
+    neLng: Optional[float] = Query(None),
+    hour: str = Query("live"),
+    db: AsyncSession = Depends(get_db)
+):
+    try:
+        if hour == "live" or not hour:
+            target_hour = datetime.now().hour
+        else:
+            target_hour = int(hour)
+    except ValueError:
+        target_hour = datetime.now().hour
+
+    hr_expr = "(CASE WHEN r.time_context ~ '^[0-9]+$' THEN CAST(r.time_context AS INTEGER) WHEN r.time_context = 'day' THEN 12 ELSE 0 END)"
+
+    sql = f"""
+        SELECT 
+            r.grid_cell_id,
+            c.center_lat,
+            c.center_lng,
+            COUNT(r.id) as total_ratings,
+            COALESCE(
+                SUM(
+                    r.safety_rating * 
+                    EXP(-0.0077 * (EXTRACT(EPOCH FROM (NOW() - r.created_at)) / 86400.0)) * 
+                    EXP(-POWER(LEAST(ABS({hr_expr} - :hour), 24 - ABS({hr_expr} - :hour)), 2) / 4.5)
+                ) / 
+                NULLIF(
+                    SUM(
+                        EXP(-0.0077 * (EXTRACT(EPOCH FROM (NOW() - r.created_at)) / 86400.0)) * 
+                        EXP(-POWER(LEAST(ABS({hr_expr} - :hour), 24 - ABS({hr_expr} - :hour)), 2) / 4.5)
+                    ), 
+                    0
+                ),
+                0
+            ) as score,
+            SUM(
+                EXP(-0.0077 * (EXTRACT(EPOCH FROM (NOW() - r.created_at)) / 86400.0)) * 
+                EXP(-POWER(LEAST(ABS({hr_expr} - :hour), 24 - ABS({hr_expr} - :hour)), 2) / 4.5)
+            ) as total_weight
+        FROM ratings as r
+        JOIN grid_cells as c ON r.grid_cell_id = c.cell_id
+    """
+
+    conditions = []
+    params = {"hour": target_hour}
+
+    if swLat is not None and swLng is not None and neLat is not None and neLng is not None:
+        conditions.append("c.center_lat >= :swLat AND c.center_lat <= :neLat")
+        conditions.append("c.center_lng >= :swLng AND c.center_lng <= :neLng")
+        params.update({"swLat": swLat, "neLat": neLat, "swLng": swLng, "neLng": neLng})
+
+    if conditions:
+        sql += " WHERE " + " AND ".join(conditions)
+
+    sql += " GROUP BY r.grid_cell_id, c.center_lat, c.center_lng"
+
+    res = await db.execute(text(sql), params)
+    rows = res.fetchall()
+
+    formatted = []
+    for r in rows:
+        total_weight = float(r[5]) if r[5] is not None else 0.0
+        # Enforce threshold filter
+        if total_weight < 0.05:
+            continue
+
+        score = float(r[4])
+        formatted.append({
+            "cell_id": r[0],
+            "center": {
+                "lat": float(r[1]),
+                "lng": float(r[2])
+            },
+            "score": round(score, 2),
+            "total_ratings": int(r[3]),
+            "weight": round(total_weight, 3)
+        })
+
+    return {"cells": formatted}
