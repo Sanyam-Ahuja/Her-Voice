@@ -20,7 +20,7 @@ export async function checkRateLimit(lat, lng) {
 
   if (!lastRated) return true;
 
-  const diff = Date.now() - new Date(lastRated).getTime();
+  const diff = Date.now() - lastRated;
   return diff > SIX_DAYS_MS;
 }
 
@@ -28,7 +28,7 @@ export async function saveRatingToHistory(lat, lng) {
   const cellId = encodeHash(lat, lng, 7);
   const history = await getHistory();
   
-  history[cellId] = new Date().toISOString();
+  history[cellId] = Date.now();
   
   try {
     await AsyncStorage.setItem(HISTORY_KEY, JSON.stringify(history));
@@ -42,8 +42,8 @@ export async function cleanupRateLimitHistory() {
   const now = Date.now();
   let updated = false;
 
-  for (const [cellId, dateStr] of Object.entries(history)) {
-    const diff = now - new Date(dateStr).getTime();
+  for (const [cellId, timeVal] of Object.entries(history)) {
+    const diff = now - timeVal;
     if (diff > SIX_DAYS_MS) {
       delete history[cellId];
       updated = true;
