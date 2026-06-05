@@ -1,4 +1,6 @@
 *.md
 *.env
 node_modules/
-.expo
+.expo/
+.venv/
+__pycache__/
