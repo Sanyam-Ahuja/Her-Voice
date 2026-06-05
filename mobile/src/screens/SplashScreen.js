@@ -54,7 +54,7 @@ export default function SplashScreen({ onLoaded }) {
         <Text style={styles.subtitle}>Empowering Safety Through Collective Signals</Text>
         <ActivityIndicator size="large" color={colors.accent} style={styles.loader} />
       </View>
-      <Text style={styles.footer}>🔒 100% Anonymous & Private</Text>
+      <Text style={styles.footer}>100% Anonymous & Private</Text>
     </View>
   );
 }
