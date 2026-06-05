@@ -111,7 +111,7 @@ export default function RatingScreen({ visible, coords, onClose }) {
               </TouchableOpacity>
 
               <Text style={styles.disclaimer}>
-                🔒 Fully anonymous. No location history, no personal data stored.
+                 Fully anonymous. No location history, no personal data stored.
               </Text>
             </ScrollView>
           </View>
