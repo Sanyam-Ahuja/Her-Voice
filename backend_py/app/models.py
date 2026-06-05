@@ -40,6 +40,4 @@ class GridCell(Base):
     center_lng = Column(Float, nullable=False)
     weighted_score = Column(Float, default=0.0)
     total_ratings = Column(Integer, default=0)
-    day_score = Column(Float, default=0.0)
-    night_score = Column(Float, default=0.0)
     last_updated = Column(DateTime, default=datetime.utcnow)
