@@ -2,6 +2,7 @@ import uuid
 from datetime import datetime
 from sqlalchemy import Column, Integer, String, Float, Boolean, DateTime, ForeignKey
 from sqlalchemy.sql.sqltypes import NullType
+from sqlalchemy.dialects.postgresql import UUID as PG_UUID
 from app.database import Base
 
 class Tag(Base):
@@ -13,7 +14,7 @@ class Tag(Base):
 
 class Rating(Base):
     __tablename__ = 'ratings'
-    id = Column(UUID(as_uuid=True) if hasattr(Base, 'metadata') else String(36), primary_key=True, default=uuid.uuid4)
+    id = Column(PG_UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     # Using raw String/UUID type handling to be compatible
     device_uuid = Column(String(64), nullable=False)
     lat = Column(Float, nullable=False)
@@ -23,10 +24,6 @@ class Rating(Base):
     time_context = Column(String(10), nullable=False)
     created_at = Column(DateTime, default=datetime.utcnow)
     location = Column(NullType)
-
-# Explicit definition for PostgreSQL native UUID type mapping
-from sqlalchemy.dialects.postgresql import UUID as PG_UUID
-Rating.id = Column(PG_UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
 
 class RatingTag(Base):
     __tablename__ = 'rating_tags'
