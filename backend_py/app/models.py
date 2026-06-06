@@ -1,9 +1,13 @@
 import uuid
 from datetime import datetime
 from sqlalchemy import Column, Integer, String, Float, Boolean, DateTime, ForeignKey
-from sqlalchemy.sql.sqltypes import NullType
 from sqlalchemy.dialects.postgresql import UUID as PG_UUID
+from sqlalchemy.types import UserDefinedType
 from app.database import Base
+
+class Geography(UserDefinedType):
+    def get_col_spec(self, **kw):
+        return "GEOGRAPHY(Point, 4326)"
 
 class Tag(Base):
     __tablename__ = 'tags'
@@ -23,7 +27,7 @@ class Rating(Base):
     safety_rating = Column(Integer, nullable=False)
     time_context = Column(String(10), nullable=False)
     created_at = Column(DateTime, default=datetime.utcnow)
-    location = Column(NullType)
+    location = Column(Geography)
 
 class RatingTag(Base):
     __tablename__ = 'rating_tags'
