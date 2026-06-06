@@ -3,6 +3,7 @@ import logging
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from app.database import engine, Base
+from app import models
 from app.routes import router
 from app.config import CORS_ORIGINS
 from app.services.ml_service import safety_predictor
