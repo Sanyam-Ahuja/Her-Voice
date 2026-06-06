@@ -1,5 +1,5 @@
 import axios from 'axios';
-import { API_URL } from '../utils/constants';
+import { API_URL, API_KEY } from '../utils/constants';
 import { getHashedUUID } from './deviceService';
 import { checkRateLimit, saveRatingToHistory } from './rateLimitService';
 
@@ -8,13 +8,14 @@ const api = axios.create({
   timeout: 10000
 });
 
-// Automatically inject hashed device UUID into headers for rate-limiting
+// Automatically inject hashed device UUID and API Key into headers
 api.interceptors.request.use(async (config) => {
   try {
     const hash = await getHashedUUID();
     config.headers['X-Device-ID'] = hash;
+    config.headers['X-API-Key'] = API_KEY;
   } catch (err) {
-    console.error('Failed to inject device ID header', err);
+    console.error('Failed to inject request headers', err);
   }
   return config;
 });

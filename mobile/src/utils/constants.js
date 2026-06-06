@@ -4,3 +4,4 @@
 export const API_URL = process.env.EXPO_PUBLIC_API_URL || 'http://localhost:3000/api';
 
 export const MAP_REGION_DELTA = 0.015;
+export const API_KEY = process.env.EXPO_PUBLIC_API_KEY || 'hervoice_dev_secret_key_change_me_in_prod';

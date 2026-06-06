@@ -4,3 +4,5 @@ node_modules/
 .expo/
 .venv/
 __pycache__/
+mobile/eas.json
+mobile/android/
